@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bestellung</title>
+<style>
+:root{--ink:#1d1b3a;--bg:#f1effa;--card:#fff;--red:#e4372c;--yel:#f7c531;--grn:#2f9e6b;--mut:#6b6990;--line:#d9d6ee}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 "Trebuchet MS",Verdana,sans-serif}
+header{background:var(--ink);color:#fff;padding:14px 16px;border-bottom:6px solid var(--yel)}
+header h1{margin:0;font-size:1.3rem;letter-spacing:.3px}
+main{max-width:760px;margin:0 auto;padding:14px}
+h2{font-size:1.05rem;margin:18px 0 6px}
+.card{background:var(--card);border:2px solid var(--line);border-radius:10px;padding:12px;margin:10px 0}
+input,select,textarea{font:inherit;padding:10px;border:2px solid var(--line);border-radius:8px;width:100%;background:#fff;color:var(--ink)}
+input:focus,button:focus-visible{outline:3px solid var(--yel)}
+label{font-weight:700;display:block;margin:8px 0 4px}
+button{font:inherit;font-weight:700;border:2px solid var(--ink);background:#fff;color:var(--ink);padding:10px 14px;border-radius:8px;cursor:pointer}
+button.pri{background:var(--red);border-color:var(--red);color:#fff;width:100%;font-size:1.1rem;padding:14px}
+button.on{background:var(--ink);color:#fff}
+button.ok.on{background:var(--grn);border-color:var(--grn)}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.row>.n{flex:1}
+.qty{display:flex;align-items:center;gap:10px}
+.qty button{width:44px;padding:8px}
+.qty b{min-width:20px;text-align:center}
+.mut{color:var(--mut);font-size:.9rem}
+.price{font-weight:700;white-space:nowrap}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.st{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.st button{padding:8px 10px;font-size:.9rem}
+.big{font-size:2.4rem;font-weight:800}
+.badge{display:inline-block;background:var(--yel);padding:2px 10px;border-radius:20px;font-weight:800}
+table{width:100%;border-collapse:collapse}td,th{padding:6px;border-bottom:1px solid var(--line);text-align:left}
+.g{display:grid;grid-template-columns:2fr 1.3fr 1fr auto auto;gap:6px;align-items:center;margin-bottom:8px}
+@media(max-width:560px){.g{grid-template-columns:1fr 1fr}}
+</style></head><body>
+<header><h1 id="club">Bestellung</h1></header>
+<main id="app"></main>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+/* ===== EINSTELLUNG: Firebase-Konfiguration hier einfügen (siehe Anleitung). =====
+   Solange null, läuft die App im Testmodus (Daten nur in DIESEM Browser). */
+const FIREBASE_CONFIG = null;
+/* ========================================================================== */
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const eur=n=>(n||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'});
+const ST=['Eingegangen','In Bearbeitung','Fertig','Kassiert','Abgeschlossen'];
+
+/* ---------- Datenschicht ---------- */
+let DB;
+if(FIREBASE_CONFIG && window.firebase){
+  firebase.initializeApp(FIREBASE_CONFIG);
+  const f=firebase.firestore();
+  DB={live:true,
+    onDoc:(p,cb)=>f.doc(p).onSnapshot(s=>cb(s.exists?s.data():null)),
+    setDoc:(p,v)=>f.doc(p).set(v),
+    onOrders:cb=>f.collection('orders').orderBy('nr').onSnapshot(s=>cb(s.docs.map(d=>({id:d.id,...d.data()})))),
+    onOrder:(id,cb)=>f.collection('orders').doc(id).onSnapshot(s=>cb(s.exists?{id:s.id,...s.data()}:null)),
+    async addOrder(o){const ref=f.doc('config/counter'),or=f.collection('orders').doc();let nr;
+      await f.runTransaction(async t=>{const s=await t.get(ref);nr=(s.exists?s.data().n:0)+1;t.set(ref,{n:nr});t.set(or,{...o,nr,ts:Date.now()})});
+      return{id:or.id,nr}},
+    updOrder:(id,v)=>f.collection('orders').doc(id).update(v)};
+}else{
+  const subs=[];let last='';
+  const L=()=>JSON.parse(localStorage.fvData||'{}'),W=d=>localStorage.fvData=JSON.stringify(d);
+  const tick=()=>{const r=localStorage.fvData||'{}';if(r!==last){last=r;subs.forEach(f=>f(JSON.parse(r)))}};
+  setInterval(tick,800);
+  const sub=g=>cb=>{const f=d=>cb(g(d));subs.push(f);f(L())};
+  DB={live:false,
+    onDoc:(p,cb)=>sub(d=>d[p]||null)(cb),
+    setDoc(p,v){const d=L();d[p]=v;W(d);tick()},
+    onOrders:cb=>sub(d=>d.orders||[])(cb),
+    onOrder:(id,cb)=>sub(d=>(d.orders||[]).find(o=>o.id==id)||null)(cb),
+    async addOrder(o){const d=L();d.n=(d.n||0)+1;const id='o'+d.n;(d.orders=d.orders||[]).push({...o,id,nr:d.n,ts:Date.now()});W(d);tick();return{id,nr:d.n}},
+    async updOrder(id,v){const d=L();Object.assign(d.orders.find(o=>o.id==id),v);W(d);tick()}};
+}
+
+/* ---------- Zustand ---------- */
+let menu=[],S={club:'Fastnachtsverein',kpw:'kueche',apw:'admin'},orders=[];
+let cart={},table='',note='',err='';
+let role=sessionStorage.role||'',tab='orders';
+let myId=localStorage.myOrder||'',myOrder=null,unOrder=null;
+
+DB.onDoc('config/menu',d=>{menu=d?d.items:[];render()});
+DB.onDoc('config/settings',d=>{if(d)S={...S,...d};render()});
+DB.onOrders(o=>{orders=o;render()});
+function watch(){unOrder&&unOrder();unOrder=null;if(myId)unOrder=DB.onOrder(myId,o=>{myOrder=o;render()})}
+watch();addEventListener('hashchange',()=>render(true));
+
+function render(force){
+  const a=document.activeElement;
+  if(!force&&a&&a.tagName=='INPUT'&&$('#app').contains(a))return;
+  $('#club').textContent=S.club+(isTeam()?' – Team':'');
+  document.title=S.club;
+  $('#app').innerHTML=isTeam()?(role?team():login()):guest();
+  if(isTeam()&&role&&tab=='set'&&window.QRCode){const q=$('#qr');if(q)new QRCode(q,{text:link(),width:200,height:200})}
+}
+const isTeam=()=>location.hash=='#team';
+const link=()=>location.href.split('#')[0];
+const total=()=>menu.reduce((s,m)=>s+(cart[m.id]?.q||0)*m.price,0);
+const orderTotal=o=>o.items.reduce((s,i)=>s+i.q*i.price,0);
+
+/* ---------- Gäste ---------- */
+function guest(){
+  if(myId&&myOrder)return`<div class="card"><p class="mut">Deine Bestellung</p>
+    <div class="big">Nr. ${myOrder.nr}</div><p>Tisch ${myOrder.table} · <span class="badge">${ST[myOrder.status]}</span></p>
+    ${myOrder.items.map(i=>`<div class="row"><span>${i.q}× ${esc(i.name)}${i.note?` <span class="mut">(${esc(i.note)})</span>`:''}</span><span>${eur(i.q*i.price)}</span></div>`).join('')}
+    <p class="price">Summe: ${eur(orderTotal(myOrder))}</p>
+    <p class="mut">Diese Seite aktualisiert sich selbst. Bezahlt wird am Tisch.</p>
+    <button onclick="newOrder()">Neue Bestellung aufgeben</button></div>`;
+  const av=menu.filter(m=>m.on!==false);
+  if(!av.length)return`<div class="card">Die Speisekarte ist noch leer. Bitte im Team-Bereich Artikel anlegen.</div>`;
+  const cats=[...new Set(av.map(m=>m.cat||'Sonstiges'))];
+  return`${err?`<div class="card" style="border-color:var(--red)">${esc(err)}</div>`:''}
+  <label for="tb">Tischnummer</label><input id="tb" type="number" inputmode="numeric" min="1" value="${esc(table)}" oninput="table=this.value">
+  ${cats.map(c=>`<h2>${esc(c)}</h2>`+av.filter(m=>(m.cat||'Sonstiges')==c).map(m=>{const q=cart[m.id]?.q||0;
+    return`<div class="card"><div class="row"><div class="n"><b>${esc(m.name)}</b><div class="price">${eur(m.price)}</div></div>
+    <div class="qty"><button aria-label="weniger" onclick="chg('${m.id}',-1)">−</button><b>${q}</b><button aria-label="mehr" onclick="chg('${m.id}',1)">+</button></div></div>
+    ${q?`<input placeholder="Sonderwunsch (z. B. ohne Zwiebeln)" value="${esc(cart[m.id].note||'')}" oninput="cart['${m.id}'].note=this.value" style="margin-top:8px">`:''}</div>`}).join('')).join('')}
+  <label for="nt">Anmerkung zur Bestellung</label><input id="nt" value="${esc(note)}" oninput="note=this.value">
+  <p class="price" style="font-size:1.2rem">Summe: ${eur(total())}</p>
+  <button class="pri" onclick="submitOrder()">Verbindlich bestellen</button>`;
+}
+function chg(id,d){const q=Math.max(0,(cart[id]?.q||0)+d);cart[id]={...(cart[id]||{}),q};render(true)}
+async function submitOrder(){
+  const items=menu.filter(m=>cart[m.id]?.q>0).map(m=>({name:m.name,price:m.price,q:cart[m.id].q,note:cart[m.id].note||''}));
+  if(!(+table>0)){err='Bitte eine Tischnummer eingeben.';return render(true)}
+  if(!items.length){err='Bitte mindestens einen Artikel wählen.';return render(true)}
+  err='';
+  try{const r=await DB.addOrder({table:+table,items,note,status:0});
+    myId=r.id;localStorage.myOrder=myId;cart={};note='';watch()}
+  catch(e){err='Senden fehlgeschlagen. Bitte Verbindung prüfen und erneut versuchen.';render(true)}
+}
+function newOrder(){myId='';myOrder=null;localStorage.removeItem('myOrder');watch();render(true)}
+
+/* ---------- Team ---------- */
+function login(){return`<div class="card"><label for="pw">Passwort</label><input id="pw" type="password" onkeydown="if(event.key=='Enter')doLogin()">
+  <p class="mut">${err}</p><button class="pri" onclick="doLogin()">Anmelden</button></div>`}
+function doLogin(){const p=$('#pw').value;
+  if(p===S.apw)role='a';else if(p===S.kpw)role='k';else{err='Falsches Passwort.';return render(true)}
+  err='';sessionStorage.role=role;tab='orders';render(true)}
+function logout(){role='';sessionStorage.removeItem('role');render(true)}
+function team(){
+  const tabs=[['orders','Bestellungen']].concat(role=='a'?[['menu','Speisekarte'],['rev','Umsatz'],['set','Einstellungen']]:[]);
+  return`<div class="tabs">${tabs.map(t=>`<button class="${tab==t[0]?'on':''}" onclick="tab='${t[0]}';render(true)">${t[1]}</button>`).join('')}
+  <button onclick="logout()" style="margin-left:auto">Abmelden</button></div>`+({orders:kitchen,menu:adminMenu,rev:revenue,set:settings}[tab])();
+}
+function kitchen(){
+  const act=orders.filter(o=>o.status<4).sort((a,b)=>a.nr-b.nr);
+  if(!act.length)return'<div class="card">Keine offenen Bestellungen.</div>';
+  return act.map(o=>`<div class="card"><div class="row"><b style="font-size:1.2rem">Nr. ${o.nr} · Tisch ${o.table}</b><span class="mut">${new Date(o.ts).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</span></div>
+    ${o.items.map(i=>`<div>${i.q}× <b>${esc(i.name)}</b>${i.note?` <span class="mut">– ${esc(i.note)}</span>`:''}</div>`).join('')}
+    ${o.note?`<div class="mut">Anmerkung: ${esc(o.note)}</div>`:''}
+    <div class="price">${eur(orderTotal(o))}</div>
+    <div class="st">${ST.map((s,i)=>`<button class="ok ${o.status==i?'on':''}" onclick="DB.updOrder('${o.id}',{status:${i}})">${s}</button>`).join('')}</div></div>`).join('');
+}
+const savMenu=()=>DB.setDoc('config/menu',{items:menu});
+function mset(i,k,v){menu[i][k]=k=='price'?(parseFloat(String(v).replace(',','.'))||0):v;savMenu()}
+function madd(){menu.push({id:'m'+Date.now(),name:'Neuer Artikel',cat:'Getränke',price:0,on:true});savMenu()}
+function mdel(i){if(confirm('Artikel löschen?')){menu.splice(i,1);savMenu()}}
+function adminMenu(){
+  return`<p class="mut">Änderungen werden sofort gespeichert. Spalten: Name, Kategorie, Preis in €, verfügbar.</p>
+  ${menu.map((m,i)=>`<div class="g"><input value="${esc(m.name)}" aria-label="Name" onchange="mset(${i},'name',this.value)">
+   <input value="${esc(m.cat)}" aria-label="Kategorie" onchange="mset(${i},'cat',this.value)">
+   <input value="${m.price}" inputmode="decimal" aria-label="Preis" onchange="mset(${i},'price',this.value)">
+   <label style="margin:0"><input type="checkbox" style="width:auto" ${m.on!==false?'checked':''} onchange="mset(${i},'on',this.checked)"> da</label>
+   <button onclick="mdel(${i})" aria-label="Löschen">✕</button></div>`).join('')}
+  <button onclick="madd()">+ Artikel hinzufügen</button>`;
+}
+function revenue(){
+  const paid=orders.filter(o=>o.status>=3),open=orders.filter(o=>o.status<3);
+  const by={};paid.forEach(o=>o.items.forEach(i=>{by[i.name]=by[i.name]||{q:0,s:0};by[i.name].q+=i.q;by[i.name].s+=i.q*i.price}));
+  return`<div class="card"><div class="mut">Umsatz (kassiert/abgeschlossen)</div><div class="big">${eur(paid.reduce((s,o)=>s+orderTotal(o),0))}</div>
+  <div>${paid.length} Bestellungen bezahlt · ${open.length} offen (${eur(open.reduce((s,o)=>s+orderTotal(o),0))})</div></div>
+  <table><tr><th>Artikel</th><th>Menge</th><th>Umsatz</th></tr>${Object.entries(by).sort((a,b)=>b[1].s-a[1].s).map(([n,v])=>`<tr><td>${esc(n)}</td><td>${v.q}</td><td>${eur(v.s)}</td></tr>`).join('')}</table>`;
+}
+function sset(k,v){S[k]=v;DB.setDoc('config/settings',S)}
+function settings(){
+  return`<div class="card"><label>Name des Vereins</label><input value="${esc(S.club)}" onchange="sset('club',this.value)">
+  <label>Passwort Küche</label><input value="${esc(S.kpw)}" onchange="sset('kpw',this.value)">
+  <label>Passwort Admin</label><input value="${esc(S.apw)}" onchange="sset('apw',this.value)"></div>
+  <div class="card"><b>QR-Code für die Gäste</b><p class="mut" style="word-break:break-all">${esc(link())}</p><div id="qr"></div>
+  <p class="mut">Rechtsklick auf den Code zum Speichern oder Drucken.</p></div>
+  ${DB.live?'':'<div class="card" style="border-color:var(--red)">Testmodus: Daten bleiben nur in diesem Browser. Für den echten Einsatz Firebase eintragen.</div>'}`;
+}
+render(true);
+</script></body></html>
