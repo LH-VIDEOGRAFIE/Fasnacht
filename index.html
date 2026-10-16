@@ -172,6 +172,7 @@ function adminMenu(){
    <button onclick="mdel(${i})" aria-label="Löschen">✕</button></div>`).join('')}
   <button onclick="madd()">+ Artikel hinzufügen</button>`;
 }
+   
 function revenue(){
   const paid=orders.filter(o=>o.status>=3),open=orders.filter(o=>o.status<3);
   const by={};paid.forEach(o=>o.items.forEach(i=>{by[i.name]=by[i.name]||{q:0,s:0};by[i.name].q+=i.q;by[i.name].s+=i.q*i.price}));
