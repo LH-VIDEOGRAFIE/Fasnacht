@@ -1,7 +1,7 @@
 /* ===== HIER DEINE FIREBASE-DATEN EINTRAGEN (Anleitung Schritt 4) ===== */
 const FIREBASE_CONFIG={apiKey:"AIzaSyBj4SAeWRIGt2H4xXRVqhyfmDU37Vc1rPA",authDomain:"fasnacht-bestellungen.firebaseapp.com",projectId:"fasnacht-bestellungen",appId:"1:489525283948:web:19ef3b6d791d84de881c49"};
 /* Die zwei Login-Konten (Anleitung Schritt 3) – nur ändern, wenn du sie anders angelegt hast */
-const MAIL={kueche:"kueche@verein.app",admin:"admin@verein.app",admin:info@lh-videografie.de};
+const MAIL={kueche:"kueche@verein.app",admin:"admin@verein.app"};
 /* ===================================================================== */
 if(typeof firebase==='undefined'){document.body.insertAdjacentHTML('afterbegin','<p style="padding:14px"><b>Firebase konnte nicht geladen werden.</b> Internet pruefen, Adblocker ausschalten.</p>');throw new Error('Firebase fehlt')}
 firebase.initializeApp(FIREBASE_CONFIG);
