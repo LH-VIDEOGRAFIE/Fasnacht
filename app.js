@@ -1,3 +1,21 @@
+const FIREBASE_CONFIG={apiKey:"HIER_EINTRAGEN",authDomain:"HIER_EINTRAGEN",projectId:"fasnacht-bestellungen",appId:"1:489525283948:web:19ef3b6d791d84de881c49"};
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyBj4SAeWRIGt2H4xXRVqhyfmDU37Vc1rPA",
+  authDomain: "fasnacht-bestellungen.firebaseapp.com",
+  projectId: "fasnacht-bestellungen",
+  storageBucket: "fasnacht-bestellungen.firebasestorage.app",
+  messagingSenderId: "489525283948",
+  appId: "1:489525283948:web:19ef3b6d791d84de881c49"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
 import { firebaseConfig, STAFF_EMAIL } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
