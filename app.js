@@ -1,4 +1,4 @@
-const FIREBASE_CONFIG={apiKey:"HIER_EINTRAGEN",authDomain:"HIER_EINTRAGEN",projectId:"fasnacht-bestellungen",appId:"1:489525283948:web:19ef3b6d791d84de881c49"};
+const FIREBASE_CONFIG={apiKey:""AIzaSyBj4SAeWRIGt2H4xXRVqhyfmDU37Vc1rP",authDomain:"fasnacht-bestellungen.firebaseapp.com",projectId:"fasnacht-bestellungen",appId:"1:489525283948:web:19ef3b6d791d84de881c49"};
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 // TODO: Add SDKs for Firebase products that you want to use
