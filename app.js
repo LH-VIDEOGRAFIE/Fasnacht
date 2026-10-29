@@ -1,17 +1,3 @@
-
-export const firebaseConfig = {
-  apiKey: "AIzaSyBj4SAeWRIGt2H4xXRVqhyfmDU37Vc1rPA",
-  authDomain: "fasnacht-bestellungen.firebaseapp.com",
-  projectId: "fasnacht-bestellungen",
-  storageBucket: "fasnacht-bestellungen.firebasestorage.app",
-  messagingSenderId: "489525283948",
-  appId: "1:489525283948:web:19ef3b6d791d84de881c49"
-};
-
-// E-Mail des Personal-Kontos, das du in Firebase → Authentication angelegt hast.
-// Das Personal gibt in der App nur das PASSWORT ein, die E-Mail steht hier fest.
-// WICHTIG: Dieselbe E-Mail muss auch in den Firestore-Regeln stehen (firestore.rules).
-export const STAFF_EMAIL = "personal@meinverein.de";
 /* ===== HIER DEINE FIREBASE-DATEN EINTRAGEN (Anleitung Schritt 4) ===== */
 const FIREBASE_CONFIG={apiKey:"HIER_EINTRAGEN",authDomain:"HIER_EINTRAGEN",projectId:"HIER_EINTRAGEN",appId:"HIER_EINTRAGEN"};
 /* Die zwei Login-Konten (Anleitung Schritt 3) – nur ändern, wenn du sie anders angelegt hast */
