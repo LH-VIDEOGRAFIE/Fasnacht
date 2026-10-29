@@ -1,23 +1,43 @@
-<!doctype html>
-<html lang="de">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Bestellung</title>
-  <meta name="theme-color" content="#1b2a6b">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎭</text></svg>">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-</head>
-<body>
-  <div id="app"><div class="loading">Lädt …</div></div>
-  <div id="toast" role="status" aria-live="polite"></div>
-  <div id="print-area"></div>
-  <script type="module" src="app.js"></script>
-</body>
-</html>
+<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bestellung</title><link rel="stylesheet" href="style.css"></head>
+<body><div id="hd"></div><main id="app"></main>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="app.js"></script>
+<script>
+let cart={},table='',note='',err='',myId=localStorage.myOrder||'',myOrder=null,un=null;
+onMenu(()=>render(true));
+function watch(){un&&un();un=null;if(myId)un=fs.collection('orders').doc(myId).onSnapshot(s=>{myOrder=s.exists?{id:s.id,...s.data()}:null;if(!s.exists&&myId){myId='';localStorage.removeItem('myOrder')}render(true)})}
+watch();
+const total=()=>menu.reduce((s,m)=>s+(cart[m.id]?.q||0)*m.price,0);
+function render(){
+  if(myId&&myOrder){$('#app').innerHTML=`<div class="card"><p class="mut">Deine Bestellung</p><div class="big">Nr. ${myOrder.nr}</div>
+  <p>Tisch ${myOrder.table} · <span class="badge">${ST[myOrder.status]}</span></p>
+  ${myOrder.items.map(i=>`<div class="row"><span>${i.q}× ${esc(i.name)}${i.note?` <span class="mut">(${esc(i.note)})</span>`:''}</span><span>${eur(i.q*i.price)}</span></div>`).join('')}
+  <p class="price">Summe: ${eur(orderTotal(myOrder))}</p><p class="mut">Diese Seite aktualisiert sich selbst. Bezahlt wird am Tisch.</p>
+  <button onclick="newOrder()">Neue Bestellung aufgeben</button></div>`;return}
+  const av=menu.filter(m=>m.on!==false);
+  if(!av.length){$('#app').innerHTML='<div class="card">Die Speisekarte ist noch leer.</div>';return}
+  const cats=[...new Set(av.map(m=>m.cat||'Sonstiges'))];
+  $('#app').innerHTML=(err?`<div class="card" style="border-color:var(--red)">${esc(err)}</div>`:'')+
+  `<label for="tb">Tischnummer</label><input id="tb" type="number" inputmode="numeric" min="1" value="${esc(table)}" oninput="table=this.value">`+
+  cats.map(c=>`<h2>${esc(c)}</h2>`+av.filter(m=>(m.cat||'Sonstiges')==c).map(m=>{const q=cart[m.id]?.q||0;
+   return`<div class="card"><div class="row"><div class="n"><b>${esc(m.name)}</b><div class="price">${eur(m.price)}</div></div>
+   <div class="qty"><button aria-label="weniger" onclick="chg('${m.id}',-1)">−</button><b>${q}</b><button aria-label="mehr" onclick="chg('${m.id}',1)">+</button></div></div>
+   ${q?`<input placeholder="Sonderwunsch (z. B. ohne Zwiebeln)" value="${esc(cart[m.id].note||'')}" oninput="cart['${m.id}'].note=this.value" style="margin-top:8px">`:''}</div>`}).join('')).join('')+
+  `<label for="nt">Anmerkung zur Bestellung</label><input id="nt" value="${esc(note)}" oninput="note=this.value">
+  <p class="price" style="font-size:1.2rem">Summe: ${eur(total())}</p><button class="pri" onclick="submitOrder()">Verbindlich bestellen</button>`;
+}
+function chg(id,d){cart[id]={...(cart[id]||{}),q:Math.max(0,(cart[id]?.q||0)+d)};render()}
+async function submitOrder(){
+  const items=menu.filter(m=>cart[m.id]?.q>0).map(m=>({name:m.name,price:m.price,q:cart[m.id].q,note:cart[m.id].note||''}));
+  if(!(+table>0)){err='Bitte eine Tischnummer eingeben.';return render()}
+  if(!items.length){err='Bitte mindestens einen Artikel wählen.';return render()}
+  err='';
+  try{const ref=fs.doc('counter/main'),or=fs.collection('orders').doc();
+    await fs.runTransaction(async t=>{const s=await t.get(ref),nr=(s.exists?s.data().n:0)+1;t.set(ref,{n:nr});t.set(or,{table:+table,items,note,status:0,nr,ts:Date.now()})});
+    myId=or.id;localStorage.myOrder=myId;cart={};note='';watch()}
+  catch(e){err='Senden fehlgeschlagen. Bitte Verbindung prüfen und erneut versuchen.';render()}
+}
+function newOrder(){myId='';myOrder=null;localStorage.removeItem('myOrder');watch();render()}
+</script></body></html>

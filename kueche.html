@@ -1,0 +1,19 @@
+<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Küche</title><link rel="stylesheet" href="style.css"></head>
+<body><div id="hd"></div><main id="app"></main>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="app.js"></script>
+<script>
+PAGE='Küche';let first=true;
+function beep(){try{const c=new AudioContext(),o=c.createOscillator();o.connect(c.destination);o.frequency.value=880;o.start();o.stop(c.currentTime+.25)}catch(e){}}
+guard('kueche',()=>onOrders(s=>{
+  if(!first&&s.docChanges().some(c=>c.type=='added'))beep();first=false;
+  const act=orders.filter(o=>o.status<4);
+  $('#app').innerHTML=`<div class="row"><b>${act.length} offen</b><button onclick="logout()">Abmelden</button></div>`+
+  (act.length?act.map(o=>`<div class="card"><div class="row"><b style="font-size:1.2rem">Nr. ${o.nr} · Tisch ${o.table}</b><span class="mut">${new Date(o.ts).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</span></div>
+  ${o.items.map(i=>`<div>${i.q}× <b>${esc(i.name)}</b>${i.note?` <span class="mut">– ${esc(i.note)}</span>`:''}</div>`).join('')}
+  ${o.note?`<div class="mut">Anmerkung: ${esc(o.note)}</div>`:''}<div class="price">${eur(orderTotal(o))}</div>
+  <div class="st">${ST.map((s,i)=>`<button class="${o.status==i?'on':''}" onclick="fs.collection('orders').doc('${o.id}').update({status:${i}})">${s}</button>`).join('')}</div></div>`).join(''):'<div class="card">Keine offenen Bestellungen.</div>');
+}));
+</script></body></html>

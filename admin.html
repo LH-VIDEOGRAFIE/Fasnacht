@@ -1,0 +1,43 @@
+<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin</title><link rel="stylesheet" href="style.css"></head>
+<body><div id="hd"></div><main id="app"></main>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="app.js"></script>
+<script>
+PAGE='Admin';let tab='menu';
+const base=new URL('./',location.href).href;
+function render(force){
+  const a=document.activeElement;if(!force&&a&&a.tagName=='INPUT'&&$('#app').contains(a))return;
+  $('#app').innerHTML=`<div class="tabs">${[['menu','Speisekarte'],['rev','Umsatz'],['set','Einstellungen']].map(t=>`<button class="${tab==t[0]?'on':''}" onclick="tab='${t[0]}';render(true)">${t[1]}</button>`).join('')}
+  <a href="kueche.html"><button>Zur Küche</button></a><button onclick="logout()" style="margin-left:auto">Abmelden</button></div>`+({menu:vMenu,rev:vRev,set:vSet}[tab])();
+  if(tab=='set'&&window.QRCode)new QRCode($('#qr'),{text:base,width:200,height:200});
+}
+guard('admin',()=>{onMenu(render);onOrders(()=>render());render(true)});
+const sav=()=>fs.doc('config/menu').set({items:menu});
+function mset(i,k,v){menu[i][k]=k=='price'?(parseFloat(String(v).replace(',','.'))||0):v;sav()}
+function madd(){menu.push({id:'m'+Date.now(),name:'Neuer Artikel',cat:'Getränke',price:0,on:true});sav()}
+function mdel(i){if(confirm('Artikel löschen?')){menu.splice(i,1);sav()}}
+function vMenu(){return`<p class="mut">Änderungen werden sofort gespeichert und sind direkt für die Gäste sichtbar. Spalten: Name, Kategorie, Preis in €, verfügbar.</p>
+ ${menu.map((m,i)=>`<div class="g"><input value="${esc(m.name)}" aria-label="Name" onchange="mset(${i},'name',this.value)"><input value="${esc(m.cat)}" aria-label="Kategorie" onchange="mset(${i},'cat',this.value)">
+ <input value="${m.price}" inputmode="decimal" aria-label="Preis" onchange="mset(${i},'price',this.value)">
+ <label style="margin:0"><input type="checkbox" style="width:auto" ${m.on!==false?'checked':''} onchange="mset(${i},'on',this.checked)"> da</label><button class="dng" onclick="mdel(${i})" aria-label="Löschen">✕</button></div>`).join('')}
+ <button class="pri" onclick="madd()">+ Artikel hinzufügen</button>`}
+function vRev(){
+  const paid=orders.filter(o=>o.status>=3),open=orders.filter(o=>o.status<3),by={};
+  paid.forEach(o=>o.items.forEach(i=>{by[i.name]=by[i.name]||{q:0,s:0};by[i.name].q+=i.q;by[i.name].s+=i.q*i.price}));
+  return`<div class="card"><div class="mut">Umsatz (kassiert + abgeschlossen)</div><div class="big">${eur(paid.reduce((s,o)=>s+orderTotal(o),0))}</div>
+  <div>${paid.length} Bestellungen bezahlt · ${open.length} offen (${eur(open.reduce((s,o)=>s+orderTotal(o),0))})</div></div>
+  <table><tr><th>Artikel</th><th>Menge</th><th>Umsatz</th></tr>${Object.entries(by).sort((a,b)=>b[1].s-a[1].s).map(([n,v])=>`<tr><td>${esc(n)}</td><td>${v.q}</td><td>${eur(v.s)}</td></tr>`).join('')}</table>`}
+const sset=(k,v)=>fs.doc('config/settings').set({...S,[k]:v});
+function vSet(){return`<div class="card"><label>Name des Vereins</label><input value="${esc(S.club)}" onchange="sset('club',this.value)">
+ <label>Logo (erscheint oben links auf allen Seiten)</label><input type="file" accept="image/*" onchange="upLogo(this.files[0])">
+ ${S.logo?`<p><button class="dng" onclick="sset('logo','')">Logo entfernen</button></p>`:''}</div>
+ <div class="card"><b>QR-Code für die Gäste</b><p class="mut" style="word-break:break-all">${esc(base)}</p><div id="qr"></div><p class="mut">Rechtsklick auf den Code zum Speichern oder Drucken.</p></div>
+ <div class="card"><b>Neuer Abend</b><p class="mut">Löscht alle Bestellungen und setzt die Auftragsnummer auf 1 zurück. Speisekarte bleibt. Vorher den Umsatz notieren.</p><button class="dng" onclick="resetAll()">Alle Bestellungen löschen</button></div>`}
+function upLogo(f){if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,240/im.height),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);sset('logo',c.toDataURL('image/png'))};im.src=r.result};r.readAsDataURL(f)}
+async function resetAll(){
+  if(!confirm('Wirklich ALLE Bestellungen löschen?')||!confirm('Das kann nicht rückgängig gemacht werden. Fortfahren?'))return;
+  const snap=await fs.collection('orders').get(),b=fs.batch();snap.docs.forEach(d=>b.delete(d.ref));b.set(fs.doc('counter/main'),{n:0});await b.commit();alert('Zurückgesetzt.')}
+</script></body></html>
