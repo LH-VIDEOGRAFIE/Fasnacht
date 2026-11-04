@@ -1,0 +1,40 @@
+<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Theke</title><link rel="stylesheet" href="style.css"></head>
+<body><div id="hd"></div><main id="app"></main>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="app.js"></script>
+<script>
+PAGE='Theke';
+let cart={},note='',direct=false,err='',done=null,busy=false;
+const total=()=>menu.reduce((s,m)=>s+(cart[m.id]?.q||0)*m.price,0);
+guard('kueche',()=>onMenu(()=>render(false)));
+function render(force){
+  const a=document.activeElement;if(!force&&a&&a.tagName=='INPUT')return;
+  const av=menu.filter(m=>m.on!==false),cats=[...new Set(av.map(m=>m.cat||'Sonstiges'))];
+  $('#app').innerHTML=`<div class="row"><a href="kueche.html"><button>Zur Küche</button></a><button onclick="logout()">Abmelden</button></div>`+
+  (done?`<div class="card"><div class="mut">Zuletzt erfasst</div><div class="big">Nr. ${done.nr}</div><div class="price">${eur(done.sum)}</div></div>`:'')+
+  (err?`<div class="card" style="border:2px solid var(--red)">${esc(err)}</div>`:'')+
+  (av.length?cats.map(c=>`<h2>${esc(c)}</h2>`+av.filter(m=>(m.cat||'Sonstiges')==c).map(m=>{const q=cart[m.id]?.q||0;
+   return`<div class="card"><div class="row"><div class="n"><b>${esc(m.name)}</b><div class="price">${eur(m.price)}</div></div>
+   <div class="qty"><button aria-label="weniger" onclick="chg('${m.id}',-1)">−</button><b>${q}</b><button aria-label="mehr" onclick="chg('${m.id}',1)">+</button></div></div>
+   ${q?`<input placeholder="Sonderwunsch (z. B. ohne Zwiebeln)" value="${esc(cart[m.id].note||'')}" oninput="cart['${m.id}'].note=this.value" style="margin-top:8px">`:''}</div>`}).join('')).join('')+
+  `<label for="nt">Anmerkung zur Bestellung</label><input id="nt" value="${esc(note)}" oninput="note=this.value">
+  <label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" style="width:auto" ${direct?'checked':''} onchange="direct=this.checked"> Direkt ausgegeben (geht nicht an die Küche)</label>
+  <p class="price" style="font-size:1.2rem">Summe: ${eur(total())}</p><button class="pri" onclick="submit()">Bestellung erfassen</button>`
+  :'<div class="card">Die Speisekarte ist noch leer.</div>');
+}
+function chg(id,d){cart[id]={...(cart[id]||{}),q:Math.max(0,(cart[id]?.q||0)+d)};render(true)}
+async function submit(){
+  if(busy)return;
+  const items=menu.filter(m=>cart[m.id]?.q>0).map(m=>({name:m.name,price:m.price,q:cart[m.id].q,note:cart[m.id].note||''}));
+  if(!items.length){err='Bitte mindestens einen Artikel wählen.';return render(true)}
+  err='';busy=true;
+  try{const ref=fs.doc('counter/main'),or=fs.collection('orders').doc();let nr;
+    await fs.runTransaction(async t=>{const s=await t.get(ref);nr=(s.exists?s.data().n:0)+1;t.set(ref,{n:nr});
+      t.set(or,{table:0,theke:true,items,note,status:direct?4:3,nr,ts:Date.now()})});
+    done={nr,sum:items.reduce((s,i)=>s+i.q*i.price,0)};cart={};note=''}
+  catch(e){err='Speichern fehlgeschlagen ('+(e.code||'Fehler')+'). Bitte erneut versuchen.'}
+  busy=false;render(true);window.scrollTo(0,0)
+}
+</script></body></html>
